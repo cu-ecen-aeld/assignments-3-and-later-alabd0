@@ -13,11 +13,19 @@ bool do_system(const char *cmd)
 /*
  * TODO  add your code here
  *  Call the system() function with the command set in the cmd
+ * 
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
-    return true;
+    
+    if (system (cmd) == -1)
+    {  
+        return false;
+    }
+    else
+    {
+        return true;
+    }
 }
 
 /**
@@ -47,7 +55,7 @@ bool do_exec(int count, ...)
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
+    // command[count] = command[count]; **REMOVED BY ALABD0**
 
 /*
  * TODO:
@@ -58,7 +66,39 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    fflush(stdout);
+    int pid = fork();
+    int pid_status;
+    if (!pid)
+    {
+        if (execv(command[0],(command)) == -1)
+        {
+            printf("\nexcev is errors\n");
+            exit(1);
+        }
+    }
+    else if (pid == -1)
+    {
+        return false;
+    }
+    else
+    {
+        if (wait(&pid_status) == -1)
+        {
+            return false;
+        }
 
+        if (WIFEXITED(pid_status))
+        {
+           if( WEXITSTATUS(pid_status) != 0)
+           {
+            return false;
+           }
+        }
+        else return false;
+
+    }
+    
     va_end(args);
 
     return true;
@@ -82,7 +122,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
+    // command[count] = command[count]; **REMOVED BY ALABD0**
 
 
 /*
@@ -92,7 +132,40 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+    fflush(stdout);
+    int pid = fork();
+    int pid_status;
+    if (!pid)
+    {   
 
+        int fd = open (outputfile , O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0644);
+        dup2(fd,STDOUT_FILENO);
+        if (execv(command[0],(command)) == -1)
+        {
+            exit(1);
+        }
+    }
+    else if (pid == -1)
+    {
+        return false;
+    }
+    else
+    {
+        if (wait(&pid_status) == -1)
+        {
+            return false;
+        }
+        if (WIFEXITED(pid_status))
+        {
+           if( WEXITSTATUS(pid_status) != 0)
+           {
+            return false;
+           }
+        }
+        else return false;
+
+    }
+    
     va_end(args);
 
     return true;
