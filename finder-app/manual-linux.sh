@@ -99,7 +99,7 @@ sudo mknod -m 666 dev/null c 1 3
 sudo mknod -m 600 dev/console c 5 1
 
 
-cd /home/alabd/alabd/git/assignment-3-part2-alabd0/finder-app/
+cd $FINDER_APP_DIR
 # TODO: Clean and build the writer utility
 make clean
 make CROSS_COMPILE=${CROSS_COMPILE}gcc
