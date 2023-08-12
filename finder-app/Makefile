@@ -4,7 +4,7 @@ ifndef CROSS_COMPILE
 BINARY = writer
 COMP = gcc
 else
-BINARY = writercross
+BINARY = writer
 COMP = $(CROSS_COMPILE)
 endif
 
@@ -18,4 +18,4 @@ endif
 
 .PHONY = clean
 clean :
-		rm -rf $(BINARY) writercross
+		rm -rf $(BINARY)
