@@ -1,21 +1,10 @@
-CFILES = *.c
+all: writer
 
-ifndef CROSS_COMPILE
-BINARY = writer
-COMP = gcc
-else
-BINARY = writer
-COMP = $(CROSS_COMPILE)
-endif
+writer.o: writer.c
+	$(CC) $(CCFLAGS) -c $^
 
-all : $(BINARY)
+writer: writer.o
+	$(CC) $(LDFLAGS) $^ -o $@
 
-$(BINARY) : $(CFILES)
-		$(COMP) -o $@ $^ 
-ifdef CROSS_COMPILE
-		file $(BINARY) > ../assignments/assignment2/fileresult.txt
-endif
-
-.PHONY = clean
 clean :
-		rm -rf $(BINARY)
+	rm -f writer writer.o

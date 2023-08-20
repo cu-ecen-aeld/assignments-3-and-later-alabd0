@@ -1,6 +1,6 @@
 *.o
 writer
-finder-app/writer
+finder-app/*.o
 Test_*_Runner.c
 build/
 crosstool-ng
