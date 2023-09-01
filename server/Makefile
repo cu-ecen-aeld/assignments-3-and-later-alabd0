@@ -1,3 +1,5 @@
+# Author: Abdullah Alabd (abdullah.alabd.else@gmail.com)
+
 CFILES = *.c
 
 ifndef CROSS_COMPILE
@@ -6,14 +8,14 @@ CC      = gcc
 CFLAGS  = -Wall -Werror
 else
 BINARY  = aesdsocket
-CC      = $(CROSS_COMPILE)
+CC      = $(CC)
 CFLAGS  = -Wall -Werror
 endif
 
 all : $(BINARY)
 
 $(BINARY) : $(CFILES)
-		$(CC) $(CFLAGS) -o $@ $^ 
+		$(CC)  $(CFLAGS) -o $@ $^ $(LDFLAGS) 
 
 .PHONY = clean
 clean :
