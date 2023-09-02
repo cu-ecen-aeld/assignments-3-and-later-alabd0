@@ -27,8 +27,8 @@
 #include <netinet/in.h>
 
 /* _______________ MACROS DEFINITIONS ________________________ */
-#define LISNTENER_ADDRESS ((const char *)NULL)
-#define LISNTENER_PORT ((const char *)"9000")
+#define LISTENER_ADDRESS ((const char *)NULL)
+#define LISTENER_PORT ((const char *)"9000")
 #define MAX_CONNECTION_REQUESTS ((int)20)
 #define MAX_OPENED_FD ((int)20)
 #define RETURN_OK ((int)0)
@@ -37,8 +37,7 @@
 
 /* _______________ VARS DECs/DEFS ________________________ */
 
-int err; // SAVE errno VAR
-// struct sigaction sa;                                            // CREATE SIGNAL HANDLER
+int err;                              // SAVE errno VAR
 struct addrinfo hints, *res, *p;      // SERVER ADDRESSES GENERATOR
 struct sockaddr_storage clientaddr;   // RETURN OF ACCEPTED CLIENT ADDRESS
 int allfd_count;                      // STORE THE COUNT OF ANY OPENED FD
@@ -262,7 +261,7 @@ static int listener_socket_initializing(void)
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    if (getaddrinfo(LISNTENER_ADDRESS, LISNTENER_PORT, &hints, &res))
+    if (getaddrinfo(LISTENER_ADDRESS, LISTENER_PORT, &hints, &res))
     {
         err = errno;
         fprintf(stderr, "getaddrinfo ERROR FUNCTION: %s\n", strerror(err));
@@ -350,9 +349,9 @@ static int super_loop_accept_receive_write_sendback(void)
         }
         rcvbuf[numbytes] = '\n';
 
-        char *recvedbufptr = rcvbuf;
+        char *rcvbufptr = rcvbuf;
         len_buffer = numbytes;
-        while (len_buffer != 0 && (ret = write(fdwriterfile, recvedbufptr, len_buffer)) != 0)
+        while (len_buffer != 0 && (ret = write(fdwriterfile, rcvbufptr, len_buffer)) != 0)
         {
             if (ret == -1)
             {
@@ -364,7 +363,7 @@ static int super_loop_accept_receive_write_sendback(void)
                 break;
             }
             len_buffer -= ret;
-            recvedbufptr += ret;
+            rcvbufptr += ret;
         }
 
         sendbuffer_size += numbytes;
