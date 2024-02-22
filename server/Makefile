@@ -5,11 +5,11 @@ CFILES = *.c
 ifndef CROSS_COMPILE
 BINARY  = aesdsocket
 CC      = gcc
-CFLAGS  = -Wall -Werror
+CFLAGS  = -Wall -Werror -pthread -g
 else
 BINARY  = aesdsocket
 CC      = $(CC)
-CFLAGS  = -Wall -Werror
+CFLAGS  = -Wall -Werror -pthread -g
 endif
 
 all : $(BINARY)
