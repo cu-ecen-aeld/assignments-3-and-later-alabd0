@@ -3,20 +3,22 @@
 CFILES = *.c
 
 ifndef CROSS_COMPILE
-BINARY  = aesdsocket
-CC      = gcc
-CFLAGS  = -Wall -Werror -pthread -g
+TARGET  ?= aesdsocket
+CC      ?= gcc
+CFLAGS  ?= -g -Wall -Werror
+LDFLAGS ?= -pthread
 else
-BINARY  = aesdsocket
-CC      = $(CC)
-CFLAGS  = -Wall -Werror -pthread -g
+TARGET  ?= aesdsocket
+CC      ?= $(CROSS_COMPILE)gcc
+CFLAGS  ?= -g -Wall -Werror
+LDFLAGS ?= -pthread
 endif
 
-all : $(BINARY)
+all : $(TARGET)
 
-$(BINARY) : $(CFILES)
-		$(CC)  $(CFLAGS) -o $@ $^ $(LDFLAGS) 
+$(TARGET) : $(CFILES)
+		$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 
 
 .PHONY = clean
 clean :
-		rm -rf $(BINARY) $(BINARY).o
+		rm -rf $(TARGET) $(TARGET).o

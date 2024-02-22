@@ -168,6 +168,8 @@ void sigint_handler(int signo)
         }
         
         write(fdwriterfile, (void *)outstr, strlen(outstr));
+        write(STDOUT_FILENO, (void *)outstr, strlen(outstr));
+
 
         if (timer_len_buffer != 0){
             if (lseek(fdwriterfile, (off_t)pos, SEEK_SET) == -1)
