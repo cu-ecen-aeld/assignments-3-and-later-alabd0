@@ -10,4 +10,4 @@ test.sh.log
 aesdsocket
 server/aesdsocket
 server/valgrind-out.txt
-assignment7/faulty
+assignments/assignment7/faulty
