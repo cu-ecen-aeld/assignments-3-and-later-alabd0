@@ -32,13 +32,28 @@
 
 
 /* _______________ MACROS DEFINITIONS ________________________ */
+
+
+
+
+#define AESD_CHAR_DRIVE_USING                                   /*  REMOVE/ADD  COMMENT FOR USING/UNUSING TIME AESD CHAR DRIVE  */
+// #define USE_TIME_STAMP                                       /*  REMOVE/ADD  COMMENT FOR USING/UNUSING TIME STAMP ___ */
+#ifdef AESD_CHAR_DRIVE_USING
+#define OPENFILEFLAGS (O_RDWR | O_SYNC)
+#else
+#define OPENFILEFLAGS (O_RDWR | O_CREAT | O_TRUNC | O_SYNC)
+#endif
 #define LISTENER_ADDRESS ((const char *)NULL)
 #define LISTENER_PORT ((const char *)"9000")
 #define MAX_CONNECTION_REQUESTS ((int)20)
 #define MAX_OPENED_FD ((int)20)
 #define RETURN_OK ((int)0)
 #define RETURN_NOT_OK ((int)-1)
-#define RECEIVED_DATA_FILE_LOCATION ((const char *)"/var/tmp/aesdsocketdata")
+#ifdef AESD_CHAR_DRIVE_USING
+    #define RECEIVED_DATA_FILE_LOCATION ((const char *)"/dev/aesdchar")
+#else
+    #define RECEIVED_DATA_FILE_LOCATION ((const char *)"/var/tmp/aesdsocketdata")
+#endif
 
 /* _______________ VARS DECs/DEFS ________________________ */
 
@@ -140,7 +155,8 @@ static int super_loop_accept_receive_write_sendback(void);
  *  */
 
 void sigint_handler(int signo)
-{
+{   
+#ifdef USE_TIME_STAMP
     if (signo == SIGALRM)
     {
         char outstr[80] = {0};
@@ -180,14 +196,17 @@ void sigint_handler(int signo)
             }
         }
     }
-
-    else if ((signo == SIGTERM) || (signo == SIGINT))
+    else
+#endif
+    if ((signo == SIGTERM) || (signo == SIGINT))
     {
         write(STDOUT_FILENO, (void *)"Caught signal, exiting!\n", 24);
         closs_all_fd();
         syslog(LOG_MAKEPRI(LOG_USER, LOG_INFO), "Caught signal, exiting!");
         closelog();
+#ifndef AESD_CHAR_DRIVE_USING
         system("rm -rf /var/tmp/aesdsocketdata");
+#endif
         fflush(stdout);
         exit(RETURN_OK);
     }
@@ -219,7 +238,7 @@ int main(int argc, char *argv[])
         return RETURN_NOT_OK;
     }
 
-    if ((fdwriterfile = open(RECEIVED_DATA_FILE_LOCATION, O_RDWR | O_CREAT | O_TRUNC | O_SYNC, 0664)) == -1)
+    if ((fdwriterfile = open(RECEIVED_DATA_FILE_LOCATION, OPENFILEFLAGS , 0664)) == -1)
     {
         err = errno;
         fprintf(stderr, "open ERROR FUNCTION: %s\n", strerror(err));
@@ -240,12 +259,13 @@ int main(int argc, char *argv[])
             return RETURN_NOT_OK;
         }
     }
-
+#ifdef USE_TIME_STAMP
     if (timer_reader_initializing() == RETURN_NOT_OK)
     {
         fprintf(stderr, "timer_reader_initializing FUNCTION ERROR\n");
         return RETURN_NOT_OK;
     }
+#endif
 
     if (super_loop_accept_receive_write_sendback() == RETURN_NOT_OK)
     {
@@ -301,16 +321,19 @@ int signal_initializing(void)
         fprintf(stderr, "signal ERROR FUNCTION: %s\n", strerror(err));
         return RETURN_NOT_OK;
     }
+#ifdef USE_TIME_STAMP
     if (sigaction(SIGALRM, &sact, NULL) == RETURN_NOT_OK)
     {
         err = errno;
         fprintf(stderr, "signal ERROR FUNCTION: %s\n", strerror(err));
         return RETURN_NOT_OK;
     }
+#endif
+
 
     return RETURN_OK;
 }
-
+#ifdef USE_TIME_STAMP
 int timer_reader_initializing(void)
 {
     struct itimerval delay;
@@ -326,6 +349,7 @@ int timer_reader_initializing(void)
     }
     return RETURN_OK;
 }
+#endif
 
 static int listener_socket_initializing(void)
 {
@@ -483,37 +507,51 @@ void *start_thread(void *arg)
         
         rcvbufptr += ret;
     }
-
-
+#ifndef AESD_CHAR_DRIVE_USING
     if (lseek(fdwriterfile, (off_t)0, SEEK_SET) == -1)
     {
         err = errno;
         fprintf(stderr, "lseek Read ERROR FUNCTION: %s\n", strerror(err));
         exit( RETURN_NOT_OK);
     }
-    char buf[500000] = {0};
+    #endif
+char buf[500000] = {0};
 start:
-    ret = read(fdwriterfile, buf, 500000);
-    if (ret == RETURN_NOT_OK)
-    {   err = errno;
-        if (errno == EINTR)
-            goto start; /* oh shush */
-        else
-        {
-            fprintf(stderr, "Read sendbuffer ERROR FUNCTION: %s\n", strerror(err));
-            exit( RETURN_NOT_OK);
+    ret = 1;
+    int buf_offset = 0;
+    while (ret)
+    {   
+        ret = read(fdwriterfile, buf + buf_offset, 500000);
+        if (ret == RETURN_NOT_OK)
+        {   
+            err = errno;
+            if (errno == EINTR)
+                goto start; /* oh shush */
+            else
+            {
+                fprintf(stderr, "Read sendbuffer ERROR FUNCTION: %s\n", strerror(err));
+                exit( RETURN_NOT_OK);
+            }
+        }
+        else{
+            buf_offset += ret;
         }
     }
 
+    fprintf(stdout, "contents of the buf: %s\n", buf);
+    
+    
     int bytesleft = strlen(buf);
     send(fdclient, buf, bytesleft, 0);
-
+#ifndef AESD_CHAR_DRIVE_USING
     if (lseek(fdwriterfile, (off_t)0, SEEK_END) == -1)
     {
         err = errno;
         fprintf(stderr, "lseek Read ERROR FUNCTION: %s\n", strerror(err));
         exit( RETURN_NOT_OK);
     }
+#endif
+
     close(fdclient);
     argv->datap->flag = 1;
     free(argv);
