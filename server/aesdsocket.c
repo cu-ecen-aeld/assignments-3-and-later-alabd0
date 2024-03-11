@@ -39,7 +39,7 @@
 #define AESD_CHAR_DRIVE_USING                                   /*  REMOVE/ADD  COMMENT FOR USING/UNUSING TIME AESD CHAR DRIVE  */
 // #define USE_TIME_STAMP                                       /*  REMOVE/ADD  COMMENT FOR USING/UNUSING TIME STAMP ___ */
 #ifdef AESD_CHAR_DRIVE_USING
-#define OPENFILEFLAGS (O_RDWR | O_SYNC)
+#define OPENFILEFLAGS (O_RDWR )
 #else
 #define OPENFILEFLAGS (O_RDWR | O_CREAT | O_TRUNC | O_SYNC)
 #endif
@@ -220,6 +220,7 @@ void sigint_handler(int signo)
 
 int main(int argc, char *argv[])
 {
+    fprintf(stdout, "Socket Start\n");
     if (signal_initializing() == RETURN_NOT_OK)
     {
         fprintf(stderr, "signel_initializing FUNCTION ERROR\n");
@@ -238,13 +239,7 @@ int main(int argc, char *argv[])
         return RETURN_NOT_OK;
     }
 
-    if ((fdwriterfile = open(RECEIVED_DATA_FILE_LOCATION, OPENFILEFLAGS , 0664)) == -1)
-    {
-        err = errno;
-        fprintf(stderr, "open ERROR FUNCTION: %s\n", strerror(err));
-        return RETURN_NOT_OK;
-    }
-    allfd[++allfd_count] = fdwriterfile;
+    
 
     /* Put the program in the background, and dissociate from the controlling
    terminal.  If NOCHDIR is zero, do `chdir ("/")'.  If NOCLOSE is zero,
@@ -491,6 +486,13 @@ void *start_thread(void *arg)
     char *rcvbufptr = rcvbuf;
     len_buffer = numbytes;
     pthread_mutex_lock (&the_mutex);
+    if ((fdwriterfile = open(RECEIVED_DATA_FILE_LOCATION, OPENFILEFLAGS , 0664)) == -1)
+    {
+        err = errno;
+        fprintf(stderr, "open ERROR FUNCTION: %s\n", strerror(err));
+        return RETURN_NOT_OK;
+    }
+    allfd[++allfd_count] = fdwriterfile;
     timer_len_buffer = len_buffer;
     while (timer_len_buffer != 0 && (ret = write(fdwriterfile, rcvbufptr, timer_len_buffer)) != 0)
     {
@@ -551,7 +553,9 @@ start:
         exit( RETURN_NOT_OK);
     }
 #endif
-
+    close(fdwriterfile);
+    allfd[allfd_count] = 0;
+    allfd_count--;
     close(fdclient);
     argv->datap->flag = 1;
     free(argv);

@@ -218,6 +218,8 @@ static int aesd_setup_cdev(struct aesd_dev *dev)
     {
         printk(KERN_ERR "Error %d adding aesd cdev", err);
     }
+    PDEBUG("aesd_setup_cdev is done ....................................\n");
+
     return err;
 }
 
@@ -259,12 +261,16 @@ void aesd_cleanup_module(void)
     PDEBUG("BYE BYE Modules .......................................%d \n", BYE);
     dev_t devno = MKDEV(aesd_major, aesd_minor);
 
+    
+
     cdev_del(&aesd_device.cdev);
+
     if (aesd_device.full_buffer)
     {
+        printk(KERN_WARNING "kfree aesd_device.full_buffer \n");
         kfree(aesd_device.full_buffer);
     }
-    kfree(&aesd_device); //*
+
     /**
      * TODO: cleanup AESD specific poritions here as necessary
      */
