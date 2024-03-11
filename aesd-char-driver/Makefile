@@ -17,7 +17,6 @@ obj-m	:= aesdchar.o
 aesdchar-y := aesd-circular-buffer.o main.o
 else
 
-ifeq ($(KERNELRELEASE),)
 
     # Assume the source tree is where the running kernel was built
     # You should set KERNELDIR in the environment if it's elsewhere
