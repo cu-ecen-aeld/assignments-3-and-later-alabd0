@@ -11,3 +11,4 @@ aesdsocket
 server/aesdsocket
 server/valgrind-out.txt
 assignments/assignment7/faulty
+server/aesdsocket
