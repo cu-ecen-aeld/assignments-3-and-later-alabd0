@@ -2,15 +2,13 @@
 
 CFILES = *.c
 
-ifndef CROSS_COMPILE
+ifdef CROSS_COMPILE
 TARGET  ?= aesdsocket
-CC      ?= gcc
+CC      ?= $(CROSS_COMPILE)gcc
 CFLAGS  ?= -g -Wall -Werror
 LDFLAGS ?= -pthread
 else
 TARGET  ?= aesdsocket
-CC      ?= $(CROSS_COMPILE)gcc
-CFLAGS  ?= -g -Wall -Werror
 LDFLAGS ?= -pthread
 endif
 
