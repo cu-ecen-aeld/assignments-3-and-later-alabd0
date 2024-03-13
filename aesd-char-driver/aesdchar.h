@@ -42,6 +42,7 @@ struct aesd_dev
     struct aesd_buffer_entry  last_entry;
     const char *full_buffer;
     ssize_t full_buffer_size;
+    ssize_t real_full_buffer_size;
     uint8_t n_entries; 
     struct mutex lock; 
     struct cdev cdev;     /* Char device structure      */

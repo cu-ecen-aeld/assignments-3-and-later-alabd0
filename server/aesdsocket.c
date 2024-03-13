@@ -25,10 +25,11 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include "queue.h"
 #include <pthread.h>
 #include <time.h>
 #include <sys/time.h>
+#include "queue.h"
+#include "aesd_ioctl.h"
 
 
 /* _______________ MACROS DEFINITIONS ________________________ */
@@ -126,6 +127,12 @@ static void *getaddinetntop(struct sockaddr *a);
  */
 int signal_initializing(void);
 
+/**
+ * @brief setup alarm that causes interrupt every period of time.
+ * 
+ * @return @param RETURN_NOT_OK if it fails
+ *         @param RETURN_OK if it OK.
+ */
 int timer_reader_initializing(void);
 
 /**
@@ -145,6 +152,27 @@ static int listener_socket_initializing(void);
 static int super_loop_accept_receive_write_sendback(void);
 
 /**
+ * @brief it's function that made only for ioctl string compare.
+ * 
+ * @param a 
+ * @param b 
+ * @return int @param 0 if they are equal
+ *             @param 1 if they are not equal
+ */
+static int compareTwoString(char *a, char *b);
+
+
+/**
+ * @brief it's function that made only for ioctl string, 
+ *        that turns the number that inside the string 
+ *        to numbers that uses in cmd itself and its offset
+ * 
+ * @param str is CMD
+ * @return struct aesd_seekto the struct is going to the ioctl
+ */
+static struct aesd_seekto turn_to_numbers(const char * str);
+
+/**
  * @brief Gracefully exits when SIGINT or
  *        SIGTERM is received , Closing all FDs ,
  *        Deallocating Memory, Terminating
@@ -153,9 +181,8 @@ static int super_loop_accept_receive_write_sendback(void);
  * @param signo SIGNAL
  *
  *  */
-
 void sigint_handler(int signo)
-{   
+{
 #ifdef USE_TIME_STAMP
     if (signo == SIGALRM)
     {
@@ -466,6 +493,49 @@ static int super_loop_accept_receive_write_sendback(void)
     return RETURN_NOT_OK;
 }
 
+static int compareTwoString(char *a, char *b)
+{
+    int flag = 0;
+    while (*a != '\0' && *b != '\0')
+    {
+        if (*a != *b)
+        {
+            flag = 1;
+        }
+        a++;
+        b++;
+    }
+    if (flag == 0)
+        return 0;
+    else
+        return 1;
+}
+
+static struct aesd_seekto turn_to_numbers(const char * str){
+    struct aesd_seekto l_aesd_seekto;
+    char temp[10000] = {0};
+    int i = 0;
+    while( *(++str) != ':');
+    str++;
+    while( *str != ',')
+    {
+        temp[i++] =*str++ ;
+    }
+    int number = atoi(temp);
+    l_aesd_seekto.write_cmd =number;
+    str++;
+    printf("First NUMBER X: %d \n",l_aesd_seekto.write_cmd);
+    memset(temp,0,sizeof(char)*i) ;
+    i=0;
+      while( *str != '\n')
+    {
+        temp[i++] =*str++ ;
+    }
+    number = atoi(temp);
+    l_aesd_seekto.write_cmd_offset =number;
+    printf("Second NUMBER X: %d \n",l_aesd_seekto.write_cmd_offset);
+    return l_aesd_seekto;
+}
 void *start_thread(void *arg)
 {
     pthread_arg_struct_t * argv = (pthread_arg_struct_t *)(arg);
@@ -474,6 +544,7 @@ void *start_thread(void *arg)
     ssize_t len_buffer = 0;
     ssize_t ret = 0;
     int numbytes = 0;
+    int flag_ioctl = 1;
 
     if ((numbytes = recv(fdclient, rcvbuf, 100000, 0)) == -1)
     {
@@ -482,32 +553,44 @@ void *start_thread(void *arg)
         exit(RETURN_NOT_OK);
     }
     rcvbuf[numbytes] = '\n';
-
     char *rcvbufptr = rcvbuf;
     len_buffer = numbytes;
     pthread_mutex_lock (&the_mutex);
+    
     if ((fdwriterfile = open(RECEIVED_DATA_FILE_LOCATION, OPENFILEFLAGS , 0664)) == -1)
     {
         err = errno;
         fprintf(stderr, "open ERROR FUNCTION: %s\n", strerror(err));
         return RETURN_NOT_OK;
     }
+    
     allfd[++allfd_count] = fdwriterfile;
-    timer_len_buffer = len_buffer;
-    while (timer_len_buffer != 0 && (ret = write(fdwriterfile, rcvbufptr, timer_len_buffer)) != 0)
+    if(compareTwoString("AESDCHAR_IOCSEEKTO:\0",rcvbuf) == 1) // 1 MEANS NOT EQUAL
     {
-        if (ret == -1)
+        timer_len_buffer = len_buffer;
+        while (timer_len_buffer != 0 && (ret = write(fdwriterfile, rcvbufptr, timer_len_buffer)) != 0)
         {
-            if (errno == EINTR)
-                continue;
-            err = errno;
-            fprintf(stderr, "write ERROR FUNCTION: %s\n", strerror(err));
-            exit(RETURN_NOT_OK);
-            break;
+            if (ret == -1)
+            {
+                if (errno == EINTR)
+                    continue;
+                err = errno;
+                fprintf(stderr, "write ERROR FUNCTION: %s\n", strerror(err));
+                exit(RETURN_NOT_OK);
+                break;
+            }
+            timer_len_buffer -= ret;
+            rcvbufptr += ret;
         }
-        timer_len_buffer -= ret;
-        
-        rcvbufptr += ret;
+    }
+    else{
+        struct aesd_seekto l_aesd_seekto =  turn_to_numbers(rcvbuf);
+        if (ioctl(fdwriterfile,AESDCHAR_IOCSEEKTO,&l_aesd_seekto) < 0)
+        {
+            err = errno;
+            fprintf(stderr, "ioctl ERROR FUNCTION: %s\n", strerror(err));
+            exit(RETURN_NOT_OK);
+        }
     }
 #ifndef AESD_CHAR_DRIVE_USING
     if (lseek(fdwriterfile, (off_t)0, SEEK_SET) == -1)
@@ -553,6 +636,7 @@ start:
         exit( RETURN_NOT_OK);
     }
 #endif
+
     close(fdwriterfile);
     allfd[allfd_count] = 0;
     allfd_count--;

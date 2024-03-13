@@ -19,6 +19,8 @@
 #include <linux/slab.h>
 #include <linux/fs.h> // file_operations
 #include "aesdchar.h"
+#include "aesd_ioctl.h"
+
 int BYE = 1;
 int aesd_major = 0; // use dynamic major
 int aesd_minor = 0;
@@ -28,13 +30,68 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 struct aesd_dev aesd_device; // need protection.
 
+/**
+ * @brief 
+ * 
+ * @param flip 
+ * @param write_cmd 
+ * @param write_cmd_offset 
+ * @return loff_t 
+ */
+static loff_t aesd_adjust_file_offset_for_ioctl(struct file *flip, uint32_t write_cmd, uint32_t write_cmd_offset)
+{
+    loff_t ret = 0;
+    loff_t NOBytes =0;    
+    struct aesd_dev *dev = (struct aesd_dev *)flip->private_data;
+    if (!dev)
+    {
+         return -EBADF;
+    }
+    if ((dev->n_entries == 0) || write_cmd > (dev->n_entries - 1))
+        return -EINVAL;
+    else if (write_cmd_offset > (dev->cbuffer.entry[write_cmd].size - 1))
+        return -EINVAL;
+    NOBytes = dev->cbuffer.entry[write_cmd].buffptr - dev->cbuffer.entry[dev->cbuffer.out_offs].buffptr;
+    flip->f_pos = NOBytes + write_cmd_offset;
+    ret = flip->f_pos;
+    return ret;
+}
+
+
+long (aesd_ioctl) (struct file * flip, unsigned int cmd, unsigned long arg)
+{
+    long ret = -EINVAL;
+    if (flip == NULL)
+    {
+        return -EBADF;
+    }
+   
+
+    if (_IOC_TYPE(cmd) != AESD_IOC_MAGIC) return -ENOTTY;
+    if (_IOC_NR(cmd) > AESDCHAR_IOC_MAXNR) return -ENOTTY;
+    switch (cmd)
+    {
+        case AESDCHAR_IOCSEEKTO:
+        struct aesd_seekto sek;
+        if (copy_from_user(&sek,(const void __user* )arg, sizeof(sek)) != 0 )
+        {   
+            PDEBUG("Here error AESDCHAR_IOCSEEKTO: copy_from_user\n");
+            return -EFAULT;
+        }
+        ret = aesd_adjust_file_offset_for_ioctl(flip,sek.write_cmd,sek.write_cmd_offset);
+        break;
+    default: /* redundant, as cmd was checked against MAXNR */
+        return -ENOTTY;
+    }
+    return ret;
+}
+
 int aesd_open(struct inode *inode, struct file *filp)
 {
     PDEBUG("Open");
     /**
      * TODO: handle open
      */
-
     /* now trim to 0 the length of the device if open was write-only */
     filp->private_data = &aesd_device;
     if (mutex_lock_interruptible(&aesd_device.lock))
@@ -52,9 +109,57 @@ int aesd_release(struct inode *inode, struct file *filp)
     return 0;
 }
 
+
+loff_t aesd_llseak(struct file *flip, loff_t pos, int cmd)
+{
+    loff_t ret = -1;
+    
+    PDEBUG("SEEKING BEGIN: Current position: %d \n",flip->f_pos);
+
+    if (flip == NULL)
+    {
+        return -EBADF;
+    }
+    struct aesd_dev *dev = (struct aesd_dev *)flip->private_data;
+    if (dev == NULL)
+    {
+        return -EBADF;
+    }
+    switch (cmd)
+    {
+        case SEEK_SET:
+            if (pos >= dev->real_full_buffer_size || pos < 0)
+                return -EINVAL;
+            flip->f_pos = pos;
+            ret = flip->f_pos ;
+            PDEBUG("SEEK_SET: Current position: %d \n",flip->f_pos);
+        break;
+        case SEEK_CUR :
+            if (((pos+flip->f_pos) >= dev->real_full_buffer_size) || (pos+flip->f_pos) < 0)
+                return -EINVAL;
+            flip->f_pos += pos;
+            ret = flip->f_pos ;
+            PDEBUG("SEEK_CUR: Current position: %d \n",flip->f_pos);
+        break;
+        case SEEK_END :
+            if ((( pos + dev->real_full_buffer_size - 1 ) >= dev->real_full_buffer_size ) || ( pos + dev->real_full_buffer_size - 1) < 0 )
+                return -EINVAL;
+            flip->f_pos = pos + dev->real_full_buffer_size - 1;
+            ret = flip->f_pos;
+            PDEBUG("SEEK_END: Current position: %d \n",flip->f_pos);
+        break;
+    default:
+        return ret;
+        break;
+    }   
+    return ret;
+    PDEBUG("SEEKING End: Current position: %d \n",flip->f_pos);
+}
+
 /**
- * @brief reading bytes of the circular buffer every time read the next entry till all entries
- *        is done reading.
+ * @brief reading bytes of the circular buffer every time reads
+ *        an entry it retuns the number of bytes till reach the
+ *        null then it ret 0.
  */
 ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
                   loff_t *f_pos)
@@ -65,7 +170,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     /**
      * TODO: handle read
      */
-    struct aesd_dev *dev = filp->private_data;
+    struct aesd_dev *dev = filp->private_data;   
     if (mutex_lock_interruptible(&dev->lock))
         return -ERESTARTSYS;
 
@@ -126,6 +231,15 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         temp_buffer = NULL;
         aesd_circular_buffer_init(&dev->cbuffer);
     }
+    if (dev->n_entries == (AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED ))
+    {
+        dev->real_full_buffer_size += count - dev->cbuffer.entry[dev->cbuffer.out_offs].size;
+                
+    }else
+    {
+        dev->real_full_buffer_size += count;
+    }
+
     dev->full_buffer_size += count;
     dev->full_buffer = (const char *)krealloc(dev->full_buffer, dev->full_buffer_size, GFP_KERNEL);
     if (!dev->full_buffer)
@@ -143,7 +257,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         ssize_t l_s = 0;
         while (1)
         {
-            if ((l_n != AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) && (dev->cbuffer.entry[l_n].size))
+            if ((l_n <= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) && (dev->cbuffer.entry[l_n].size))
             {
                 dev->cbuffer.entry[l_n].buffptr = dev->full_buffer + l_s;
             }
@@ -204,7 +318,10 @@ struct file_operations aesd_fops = {
     .write = aesd_write,
     .open = aesd_open,
     .release = aesd_release,
+    .llseek = aesd_llseak,
+    .unlocked_ioctl = aesd_ioctl
 };
+
 
 static int aesd_setup_cdev(struct aesd_dev *dev)
 {
@@ -261,16 +378,12 @@ void aesd_cleanup_module(void)
     PDEBUG("BYE BYE Modules .......................................%d \n", BYE);
     dev_t devno = MKDEV(aesd_major, aesd_minor);
 
-    
-
     cdev_del(&aesd_device.cdev);
 
     if (aesd_device.full_buffer)
     {
-        printk(KERN_WARNING "kfree aesd_device.full_buffer \n");
         kfree(aesd_device.full_buffer);
     }
-
     /**
      * TODO: cleanup AESD specific poritions here as necessary
      */
