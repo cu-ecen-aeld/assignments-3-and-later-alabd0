@@ -60,6 +60,7 @@ static loff_t aesd_adjust_file_offset_for_ioctl(struct file *flip, uint32_t writ
 
 long (aesd_ioctl) (struct file * flip, unsigned int cmd, unsigned long arg)
 {
+    struct aesd_seekto sek;
     long ret = -EINVAL;
     if (flip == NULL)
     {
@@ -72,7 +73,7 @@ long (aesd_ioctl) (struct file * flip, unsigned int cmd, unsigned long arg)
     switch (cmd)
     {
         case AESDCHAR_IOCSEEKTO:
-        struct aesd_seekto sek;
+        
         if (copy_from_user(&sek,(const void __user* )arg, sizeof(sek)) != 0 )
         {   
             PDEBUG("Here error AESDCHAR_IOCSEEKTO: copy_from_user\n");
